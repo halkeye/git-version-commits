@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
@@ -15,20 +17,26 @@ import (
 )
 
 var (
-	org          = kingpin.Arg("org", "Github Organization/Username").Envar("GITHUB_ORG").Required().String()
-	repo         = kingpin.Arg("repo", "Repository").Envar("GITHUB_REPO").Required().String()
-	token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
-	jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
-	jiraUsername = kingpin.Flag("username", "Jira Username").Envar("JIRA_USERNAME").Required().String()
-	jiraPassword = kingpin.Flag("password", "Jira Password").Envar("JIRA_PASSWORD").Required().String()
-)
-
-var (
 	mergePullRequestRegex = regexp.MustCompile(`Merge pull request #(\d+) from`)
 	jiraIssueKey          = regexp.MustCompile(`\b([A-Z]+-\d+)\b`)
 )
 
 var jiraClient *jira.Client
+var githubClient *github.Client
+
+/* END GLOBAL VARIABLES */
+type Issue struct {
+	Title         string
+	Key           string
+	Url           string
+	IsPullRequest bool
+}
+
+type Release struct {
+	Version string
+	Date    time.Time
+	Issues  []Issue
+}
 
 func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	var issues []jira.Issue
@@ -53,6 +61,13 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 func main() {
 	var err error
 
+	var (
+		repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
+		token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
+		jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
+		jiraUsername = kingpin.Flag("username", "Jira Username").Envar("JIRA_USERNAME").Required().String()
+		jiraPassword = kingpin.Flag("password", "Jira Password").Envar("JIRA_PASSWORD").Required().String()
+	)
 	kingpin.Parse()
 
 	ctx := context.Background()
@@ -61,7 +76,7 @@ func main() {
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
-	client := github.NewClient(tc)
+	githubClient = github.NewClient(tc)
 
 	jiraClient, err = jira.NewClient(nil, *jiraServer)
 	if err != nil {
@@ -74,27 +89,18 @@ func main() {
 		panic(err)
 	}
 
-	/*
-		releases, _, err := client.Repositories.ListReleases(ctx, *org, *repo, nil)
-
-		if err != nil {
-			log.Fatal(fmt.Errorf("Problem in releases information %v", err))
-		}
-	*/
-
-	tags, _, err := client.Repositories.ListTags(ctx, *org, *repo, nil)
+	repoSplit := strings.Split(*repo, "/")
+	tags, _, err := githubClient.Repositories.ListTags(ctx, repoSplit[0], repoSplit[1], nil)
 	if err != nil {
 		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 	}
 
-	fmt.Printf("%s/%s\n", *org, *repo)
-	fmt.Printf("Tags:\n")
 	for idx, tag := range tags {
 		fmt.Printf("%s - %+v\n", tag.GetName(), tag.GetCommit().GetSHA())
 		if idx == len(tags)-1 {
 			continue
 		}
-		compare, _, err := client.Repositories.CompareCommits(ctx, *org, *repo, tags[idx+1].GetName(), tags[idx].GetName())
+		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {
 			log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 		}
@@ -105,7 +111,7 @@ func main() {
 				continue
 			}
 			pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
-			pullRequest, _, err := client.PullRequests.Get(ctx, *org, *repo, int(pullRequestNumber))
+			pullRequest, _, err := githubClient.PullRequests.Get(ctx, repoSplit[0], repoSplit[1], int(pullRequestNumber))
 			if err != nil {
 				log.Fatal(fmt.Errorf("Error Getting pull request %v", err))
 			}
