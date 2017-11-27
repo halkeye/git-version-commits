@@ -9,7 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/halkeye/git-version-commits/lib"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
@@ -36,20 +37,6 @@ var githubClient *github.Client
 var ctx = context.Background()
 
 /* END GLOBAL VARIABLES */
-type Issue struct {
-	Title         string
-	Author        string
-	Key           string
-	Url           string
-	IsPullRequest bool
-}
-
-type Release struct {
-	Version string
-	Date    time.Time
-	Issues  []Issue
-}
-
 func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	var issues []jira.Issue
 
@@ -70,8 +57,8 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	return issues, nil
 }
 
-func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]Issue, error) {
-	var issues []Issue
+func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.Issue, error) {
+	var issues []lib.Issue
 	var body = commit.GetMessage()
 	var pullRequest *github.PullRequest
 	var err error
@@ -96,7 +83,7 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]Issu
 			authorName = pullRequest.GetUser().GetLogin()
 		}
 
-		issues = append(issues, Issue{
+		issues = append(issues, lib.Issue{
 			Title:         pullRequest.GetTitle(),
 			Author:        authorName,
 			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
@@ -104,7 +91,7 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]Issu
 			IsPullRequest: true})
 	} else {
 		for _, jiraIssue := range jiraIssues {
-			issues = append(issues, Issue{
+			issues = append(issues, lib.Issue{
 				Title:         jiraIssue.Fields.Summary,
 				Author:        commit.GetAuthor().GetName(),
 				Key:           jiraIssue.Key,
@@ -147,7 +134,7 @@ func main() {
 			continue
 		}
 		tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tag.GetCommit().GetSHA())
-		release := Release{Version: strings.TrimLeft(tag.GetName(), "v"), Date: tagCommit.GetCommit().GetCommitter().GetDate()}
+		release := lib.Release{Version: strings.TrimLeft(tag.GetName(), "v"), Date: tagCommit.GetCommit().GetCommitter().GetDate()}
 
 		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {
