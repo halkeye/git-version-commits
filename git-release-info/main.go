@@ -146,14 +146,19 @@ func main() {
 		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 	}
 
+	allIssues := make(map[string]lib.Issue)
+
 	for _, commit := range compare.Commits {
 		issues, err := findIssuesForCommit(commit.GetCommit(), repoSplit[0], repoSplit[1])
 		if err != nil {
 			log.Fatal(fmt.Errorf("Problem finding issues from a commit %v", err))
 		}
-		if len(issues) > 0 {
-			release.Issues = append(release.Issues, issues...)
+		for _, issue := range issues {
+			allIssues[issue.HashKey()] = issue
 		}
+	}
+	for _, issue := range allIssues {
+		release.Issues = append(release.Issues, issue)
 	}
 	jsonStr, err := json.Marshal(release)
 	if err != nil {

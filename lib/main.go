@@ -1,6 +1,9 @@
 package lib
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Issue struct {
 	Title         string
@@ -10,6 +13,13 @@ type Issue struct {
 	Status        string
 	Type          string
 	IsPullRequest bool
+}
+
+func (i *Issue) HashKey() string {
+	return strings.Join([]string{
+		i.Author,
+		i.Key,
+	}, "_")
 }
 
 type Release struct {
