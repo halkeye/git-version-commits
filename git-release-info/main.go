@@ -1,4 +1,4 @@
-package main
+package git_release_info
 
 import (
 	"context"
