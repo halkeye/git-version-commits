@@ -32,9 +32,12 @@ var (
 	jiraPassword = kingpin.Flag("password", "Jira Password").Envar("JIRA_PASSWORD").Required().String()
 )
 
-var jiraClient *jira.Client
-var githubClient *github.Client
-var ctx = context.Background()
+var (
+	jiraClient   *jira.Client
+	githubClient *github.Client
+	ctx          = context.Background()
+	githubUsers  = make(map[string]*github.User)
+)
 
 /* END GLOBAL VARIABLES */
 func findAllJiraIssues(body string) ([]jira.Issue, error) {
@@ -57,32 +60,43 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	return issues, nil
 }
 
+func GetUser(login string) *github.User {
+	user, ok := githubUsers[login]
+	if ok {
+		return user
+	}
+	user, _, err := githubClient.Users.Get(ctx, login)
+	if err != nil {
+		panic(err)
+	}
+	githubUsers[user.GetLogin()] = user
+	return user
+}
+
 func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.Issue, error) {
 	var issues []lib.Issue
-	var body = commit.GetMessage()
 	var pullRequest *github.PullRequest
 	var err error
 
-	var matches = mergePullRequestRegex.FindStringSubmatch(body)
-	if len(matches) != 0 {
-		pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
-		pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
-		if err != nil {
-			return issues, err
-		}
-		body = body + "||||" + pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
+	var matches = mergePullRequestRegex.FindStringSubmatch(commit.GetMessage())
+	if len(matches) == 0 {
+		return issues, nil
 	}
+
+	pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
+	pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
+	if err != nil || pullRequest == nil {
+		return issues, err
+	}
+	body := pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
 
 	jiraIssues, err := findAllJiraIssues(body)
 	if err != nil {
 		return issues, nil
 	}
-	if len(jiraIssues) == 0 && pullRequest != nil {
-		authorName := pullRequest.GetUser().GetName()
-		if len(authorName) == 0 {
-			authorName = pullRequest.GetUser().GetLogin()
-		}
 
+	authorName := GetUser(pullRequest.GetUser().GetLogin()).GetName()
+	if len(jiraIssues) == 0 && pullRequest != nil {
 		issues = append(issues, lib.Issue{
 			Title:         pullRequest.GetTitle(),
 			Author:        authorName,
@@ -95,7 +109,7 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 		for _, jiraIssue := range jiraIssues {
 			issues = append(issues, lib.Issue{
 				Title:         jiraIssue.Fields.Summary,
-				Author:        commit.GetAuthor().GetName(),
+				Author:        authorName,
 				Key:           jiraIssue.Key,
 				Url:           *jiraServer + "/browse/" + jiraIssue.Key,
 				Status:        jiraIssue.Fields.Status.Name,
