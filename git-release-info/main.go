@@ -1,11 +1,10 @@
-package git_release_info
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -47,8 +46,8 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 		jiraIssues[jiraMatch[1]] = struct{}{}
 	}
 	// loop through issues
-	for _, jiraIssue := range reflect.ValueOf(jiraIssues).MapKeys() {
-		issue, _, err := jiraClient.Issue.Get(jiraIssue.Interface().(string), nil)
+	for jiraIssue, _ := range jiraIssues {
+		issue, _, err := jiraClient.Issue.Get(jiraIssue, nil)
 		if err != nil {
 			log.Fatal(fmt.Errorf("Error getting jira issue %s - %v", jiraIssue, err))
 		}
@@ -86,6 +85,8 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 		issues = append(issues, lib.Issue{
 			Title:         pullRequest.GetTitle(),
 			Author:        authorName,
+			Status:        pullRequest.GetState(),
+			Type:          "PullRequest",
 			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
 			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
 			IsPullRequest: true})
@@ -96,6 +97,8 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 				Author:        commit.GetAuthor().GetName(),
 				Key:           jiraIssue.Key,
 				Url:           *jiraServer + "/browse/" + jiraIssue.Key,
+				Status:        jiraIssue.Fields.Status.Name,
+				Type:          jiraIssue.Fields.Type.Name,
 				IsPullRequest: false})
 		}
 	}
@@ -134,7 +137,11 @@ func main() {
 			continue
 		}
 		tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tag.GetCommit().GetSHA())
-		release := lib.Release{Version: strings.TrimLeft(tag.GetName(), "v"), Date: tagCommit.GetCommit().GetCommitter().GetDate()}
+		release := lib.Release{
+			Version: strings.TrimLeft(tag.GetName(), "v"),
+			Org:     repoSplit[0],
+			Repo:    repoSplit[1],
+			Date:    tagCommit.GetCommit().GetCommitter().GetDate()}
 
 		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {
