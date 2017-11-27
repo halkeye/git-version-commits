@@ -1,9 +1,16 @@
+sudo: required
 language: go
 
+services:
+  -docker
 go:
   - stable
-install:
-  - go get ./...
 script:
+  - go get ./...
   - make all
+  - make docker
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+    docker push halkeye/git-version-commits;
+    fi
 
