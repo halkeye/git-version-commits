@@ -21,12 +21,23 @@ var (
 	jiraIssueKey          = regexp.MustCompile(`\b([A-Z]+-\d+)\b`)
 )
 
+/* Parameters */
+var (
+	repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
+	token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
+	jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
+	jiraUsername = kingpin.Flag("username", "Jira Username").Envar("JIRA_USERNAME").Required().String()
+	jiraPassword = kingpin.Flag("password", "Jira Password").Envar("JIRA_PASSWORD").Required().String()
+)
+
 var jiraClient *jira.Client
 var githubClient *github.Client
+var ctx = context.Background()
 
 /* END GLOBAL VARIABLES */
 type Issue struct {
 	Title         string
+	Author        string
 	Key           string
 	Url           string
 	IsPullRequest bool
@@ -58,19 +69,50 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	return issues, nil
 }
 
-func main() {
+func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]Issue, error) {
+	var issues []Issue
+	var body = commit.GetMessage()
+	var pullRequest *github.PullRequest
 	var err error
 
-	var (
-		repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
-		token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
-		jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
-		jiraUsername = kingpin.Flag("username", "Jira Username").Envar("JIRA_USERNAME").Required().String()
-		jiraPassword = kingpin.Flag("password", "Jira Password").Envar("JIRA_PASSWORD").Required().String()
-	)
+	var matches = mergePullRequestRegex.FindStringSubmatch(body)
+	if len(matches) != 0 {
+		pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
+		pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
+		if err != nil {
+			return issues, err
+		}
+		body = body + "||||" + pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
+	}
+
+	jiraIssues, err := findAllJiraIssues(body)
+	if err != nil {
+		return issues, nil
+	}
+	if len(jiraIssues) == 0 && pullRequest != nil {
+		issues = append(issues, Issue{
+			Title:         pullRequest.GetTitle(),
+			Author:        pullRequest.GetUser().GetName(),
+			Key:           fmt.Sprintf("#%d", pullRequest.GetID()),
+			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetID()),
+			IsPullRequest: true})
+	} else {
+		for _, jiraIssue := range jiraIssues {
+			issues = append(issues, Issue{
+				Title:         jiraIssue.Fields.Summary,
+				Author:        commit.GetAuthor().GetName(),
+				Key:           jiraIssue.Key,
+				Url:           *jiraServer + "/browse/" + jiraIssue.Key,
+				IsPullRequest: false})
+		}
+	}
+	return issues, nil
+}
+
+func main() {
+	var err error
 	kingpin.Parse()
 
-	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: *token},
 	)
@@ -100,29 +142,24 @@ func main() {
 		if idx == len(tags)-1 {
 			continue
 		}
+		release := Release{Version: strings.TrimLeft(tag.GetName(), "v")}
+
 		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {
 			log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 		}
 
 		for _, commit := range compare.Commits {
-			var matches = mergePullRequestRegex.FindStringSubmatch(commit.GetCommit().GetMessage())
-			if len(matches) == 0 {
-				continue
-			}
-			pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
-			pullRequest, _, err := githubClient.PullRequests.Get(ctx, repoSplit[0], repoSplit[1], int(pullRequestNumber))
+			issues, err := findIssuesForCommit(commit.GetCommit(), repoSplit[0], repoSplit[1])
 			if err != nil {
-				log.Fatal(fmt.Errorf("Error Getting pull request %v", err))
+				log.Fatal(fmt.Errorf("Problem finding issues from a commit %v", err))
 			}
-
-			issues, err := findAllJiraIssues(pullRequest.GetTitle() + "||||" + pullRequest.GetBody())
-			for _, issue := range issues {
-				fmt.Printf("%s - %s - %v\n", commit.GetCommit().GetAuthor().GetName(), issue.Key, issue.Fields.Summary)
+			if len(issues) > 0 {
+				release.Issues = append(release.Issues, issues...)
 			}
-			fmt.Printf("\n")
-			continue
 		}
+		fmt.Printf("%v\n", release)
+		break
 	}
 
 }
