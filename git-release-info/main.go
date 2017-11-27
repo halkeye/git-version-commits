@@ -138,10 +138,12 @@ func main() {
 		}
 		tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tag.GetCommit().GetSHA())
 		release := lib.Release{
+			Author:  tagCommit.GetCommit().GetAuthor().GetName(),
 			Version: strings.TrimLeft(tag.GetName(), "v"),
 			Org:     repoSplit[0],
 			Repo:    repoSplit[1],
-			Date:    tagCommit.GetCommit().GetCommitter().GetDate()}
+			Date:    tagCommit.GetCommit().GetCommitter().GetDate(),
+		}
 
 		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {

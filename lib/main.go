@@ -18,7 +18,7 @@ type Release struct {
 	Repo    string
 	Date    time.Time
 	Issues  []Issue
-	// FIXME - Add author?
+	Author  string
 }
 
 var StatusColorMap = map[string]string{
