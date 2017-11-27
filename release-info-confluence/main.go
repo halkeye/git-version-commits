@@ -26,6 +26,7 @@ func main() {
 	var inputFile = os.Stdin
 	var err error
 
+	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
 	if len(*releaseJson) != 0 {

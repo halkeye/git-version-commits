@@ -107,6 +107,7 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 
 func main() {
 	var err error
+	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
 	ts := oauth2.StaticTokenSource(
