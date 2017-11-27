@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"reflect"
@@ -90,11 +91,16 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]Issu
 		return issues, nil
 	}
 	if len(jiraIssues) == 0 && pullRequest != nil {
+		authorName := pullRequest.GetUser().GetName()
+		if len(authorName) == 0 {
+			authorName = pullRequest.GetUser().GetLogin()
+		}
+
 		issues = append(issues, Issue{
 			Title:         pullRequest.GetTitle(),
-			Author:        pullRequest.GetUser().GetName(),
-			Key:           fmt.Sprintf("#%d", pullRequest.GetID()),
-			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetID()),
+			Author:        authorName,
+			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
+			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
 			IsPullRequest: true})
 	} else {
 		for _, jiraIssue := range jiraIssues {
@@ -127,7 +133,6 @@ func main() {
 
 	res, err := jiraClient.Authentication.AcquireSessionCookie(*jiraUsername, *jiraPassword)
 	if err != nil || res == false {
-		fmt.Printf("Result: %v\n", res)
 		panic(err)
 	}
 
@@ -138,11 +143,11 @@ func main() {
 	}
 
 	for idx, tag := range tags {
-		fmt.Printf("%s - %+v\n", tag.GetName(), tag.GetCommit().GetSHA())
 		if idx == len(tags)-1 {
 			continue
 		}
-		release := Release{Version: strings.TrimLeft(tag.GetName(), "v")}
+		tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tag.GetCommit().GetSHA())
+		release := Release{Version: strings.TrimLeft(tag.GetName(), "v"), Date: tagCommit.GetCommit().GetCommitter().GetDate()}
 
 		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
 		if err != nil {
@@ -158,7 +163,11 @@ func main() {
 				release.Issues = append(release.Issues, issues...)
 			}
 		}
-		fmt.Printf("%v\n", release)
+		jsonStr, err := json.Marshal(release)
+		if err != nil {
+			log.Fatal(fmt.Errorf("Error creating json %v", err))
+		}
+		fmt.Printf("%s\n", jsonStr)
 		break
 	}
 
