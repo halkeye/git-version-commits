@@ -122,6 +122,7 @@ var (
 				<ac:parameter ac:name="title">{{ .Status }}</ac:parameter>
 			</ac:structured-macro>
 			{{ .Title }}
+			<sub>[{{ .Author }}]</sub>
 		</li>
 	{{end}}
 <ac:layout>
