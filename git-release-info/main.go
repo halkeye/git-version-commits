@@ -24,6 +24,7 @@ var (
 
 /* Parameters */
 var (
+	skip         = kingpin.Flag("skip", "Number of tags to skip").Short('s').Default("0").Int()
 	repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
 	token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
 	jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
@@ -110,9 +111,7 @@ func main() {
 	kingpin.CommandLine.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: *token},
-	)
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: *token})
 	tc := oauth2.NewClient(ctx, ts)
 
 	githubClient = github.NewClient(tc)
@@ -133,39 +132,32 @@ func main() {
 		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 	}
 
-	for idx, tag := range tags {
-		if idx == len(tags)-1 {
-			continue
-		}
-		tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tag.GetCommit().GetSHA())
-		release := lib.Release{
-			Author:  tagCommit.GetCommit().GetAuthor().GetName(),
-			Version: strings.TrimLeft(tag.GetName(), "v"),
-			Org:     repoSplit[0],
-			Repo:    repoSplit[1],
-			Date:    tagCommit.GetCommit().GetCommitter().GetDate(),
-		}
-
-		compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[idx+1].GetName(), tags[idx].GetName())
-		if err != nil {
-			log.Fatal(fmt.Errorf("Problem in tags information %v", err))
-		}
-
-		for _, commit := range compare.Commits {
-			issues, err := findIssuesForCommit(commit.GetCommit(), repoSplit[0], repoSplit[1])
-			if err != nil {
-				log.Fatal(fmt.Errorf("Problem finding issues from a commit %v", err))
-			}
-			if len(issues) > 0 {
-				release.Issues = append(release.Issues, issues...)
-			}
-		}
-		jsonStr, err := json.Marshal(release)
-		if err != nil {
-			log.Fatal(fmt.Errorf("Error creating json %v", err))
-		}
-		fmt.Printf("%s\n", jsonStr)
-		break
+	tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tags[*skip].GetCommit().GetSHA())
+	release := lib.Release{
+		Author:  tagCommit.GetCommit().GetAuthor().GetName(),
+		Version: strings.TrimLeft(tags[*skip].GetName(), "v"),
+		Org:     repoSplit[0],
+		Repo:    repoSplit[1],
+		Date:    tagCommit.GetCommit().GetCommitter().GetDate(),
 	}
 
+	compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[*skip+1].GetName(), tags[*skip].GetName())
+	if err != nil {
+		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
+	}
+
+	for _, commit := range compare.Commits {
+		issues, err := findIssuesForCommit(commit.GetCommit(), repoSplit[0], repoSplit[1])
+		if err != nil {
+			log.Fatal(fmt.Errorf("Problem finding issues from a commit %v", err))
+		}
+		if len(issues) > 0 {
+			release.Issues = append(release.Issues, issues...)
+		}
+	}
+	jsonStr, err := json.Marshal(release)
+	if err != nil {
+		log.Fatal(fmt.Errorf("Error creating json %v", err))
+	}
+	fmt.Printf("%s\n", jsonStr)
 }
