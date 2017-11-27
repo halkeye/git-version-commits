@@ -30,7 +30,7 @@ func main() {
 	kingpin.Parse()
 
 	if len(*releaseJson) != 0 {
-		inputFile, err = os.Open("file.go") // For read access.
+		inputFile, err = os.Open(*releaseJson)
 		if err != nil {
 			panic(err)
 		}
