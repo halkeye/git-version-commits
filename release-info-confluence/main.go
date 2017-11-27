@@ -68,9 +68,7 @@ func main() {
 		// FIXME - call GetContent on ancestor id and figure out its space?
 		content.Space.Key = "~gavin"
 	} else {
-		fmt.Printf("Before: %d\n", content.Version.Number)
 		content.Version.Number = content.Version.Number + 1
-		fmt.Printf("After: %d\n", content.Version.Number)
 	}
 
 	content.Body.Storage.Representation = "storage"
