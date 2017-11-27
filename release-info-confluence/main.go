@@ -8,8 +8,6 @@ import (
 	"text/template"
 
 	"github.com/halkeye/git-version-commits/lib"
-
-	"github.com/traum-ferienwohnungen/go-confluence"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -44,57 +42,7 @@ func main() {
 	}
 
 	title := release.Repo + " - " + release.Version
-
-	/// FIXME - all of this should move to confluence-cli
-	confluenceClient, err := confluence.NewWiki(*confluenceServer, confluence.BasicAuth(*confluenceUsername, *confluencePassword))
-	if err != nil {
-		panic(err)
-	}
-
-	results, err := confluenceClient.GetContentChildrenPages("64719107", []string{"version", "space"})
-	if err != nil {
-		panic(err)
-	}
-	var content *confluence.Content
-	for _, page := range results.Results {
-		if page.Title == title {
-			content = &page
-			break
-		}
-	}
-	if content == nil {
-		content = &confluence.Content{Title: title, Type: "page"}
-		// FIXME - unhardcode this id
-		content.Ancestors = []confluence.ContentAncestor{confluence.ContentAncestor{ID: "64719107"}}
-		// FIXME - call GetContent on ancestor id and figure out its space?
-		content.Space.Key = "~gavin"
-	} else {
-		content.Version.Number = content.Version.Number + 1
-	}
-
-	content.Body.Storage.Representation = "storage"
-	// updated values
-	content.Body.Storage.Value = tpl.String()
-
-	/*
-		jsonStr, err := json.Marshal(content)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("%s\n", jsonStr)
-	*/
-
-	var response []byte
-	if content.ID != "" {
-		content, response, err = confluenceClient.UpdateContent(content)
-	} else {
-		content, response, err = confluenceClient.CreateContent(content)
-	}
-	if err != nil {
-		fmt.Printf("Response: %s\n", response)
-		panic(err)
-	}
-	fmt.Printf("%s\n", *confluenceServer+"/pages/viewpage.action?pageId="+content.ID)
+	fmt.Printf("%s\n%s\n", title, tpl.String())
 }
 
 var (
