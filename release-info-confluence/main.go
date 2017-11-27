@@ -63,7 +63,9 @@ func main() {
 	}
 	if content == nil {
 		content = &confluence.Content{Title: title, Type: "page"}
+		// FIXME - unhardcode this id
 		content.Ancestors = []confluence.ContentAncestor{confluence.ContentAncestor{ID: "64719107"}}
+		// FIXME - call GetContent on ancestor id and figure out its space?
 		content.Space.Key = "~gavin"
 	} else {
 		fmt.Printf("Before: %d\n", content.Version.Number)
