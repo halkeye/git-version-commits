@@ -87,7 +87,7 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 			Title:         pullRequest.GetTitle(),
 			Author:        authorName,
 			Status:        pullRequest.GetState(),
-			Type:          "PullRequest",
+			Type:          "Pull Request",
 			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
 			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
 			IsPullRequest: true})
