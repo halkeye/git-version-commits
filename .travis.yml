@@ -2,8 +2,9 @@ sudo: required
 language: go
 
 addons:
-  packages:
-    - docker-ce
+  apt:
+    packages:
+      - docker-ce
 services:
   - docker
 go:
