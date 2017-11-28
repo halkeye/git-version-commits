@@ -1,8 +1,11 @@
 sudo: required
 language: go
 
+addons:
+  packages:
+    - docker-ce
 services:
-  -docker
+  - docker
 go:
   - stable
 script:
