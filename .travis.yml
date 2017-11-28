@@ -1,9 +1,22 @@
+sudo: required
+
 language: go
+addons:
+  apt:
+    packages:
+      - docker-ce
+services:
+- docker
 go:
 - stable
 script:
 - go get ./...
 - make all
+- make docker
+- if [ "$TRAVIS_BRANCH" == "master" ]; then
+  docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+  docker push halkeye/git-version-commits;
+  fi
 deploy:
   provider: releases
   api_key:
