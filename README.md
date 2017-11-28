@@ -14,6 +14,12 @@ $ git-release-info --server=jiraserver --username=jirausername --password=jirapa
 https://wiki.saucelabs.com/pages/viewpage.action?pageId=<pageId>
 ```
 
+### Example using docker
+
+```
+ docker run --rm -e GITHUB_TOKEN -e JIRA_SERVER -e JIRA_USERNAME -e JIRA_PASSWORD -e CONFLUENCE_SERVER -e CONFLUENCE_USERNAME -e CONFLUENCE_PASSWORD halkeye/git-version-commits <repo> <parentPageId>
+```
+
 ## Global Config
 
 Want to just set some env variables and not worry about providing flags every time?
