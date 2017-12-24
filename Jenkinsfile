@@ -11,6 +11,11 @@ pipeline {
   }
 
   stages {
+    stage('Install') {
+      steps {
+        sh 'go get ./...'
+      }
+    }
     stage('Build') {
       steps {
         sh 'make all'
