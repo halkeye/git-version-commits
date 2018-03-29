@@ -26,7 +26,7 @@ pipeline {
       }
       steps {
         sh 'docker login --username $DOCKER_USR --password=$DOCKER_PSW'
-        sh 'docker push halkeye/git-version-commits
+        sh 'docker push halkeye/git-version-commits'
       }
     }
   }
