@@ -12,10 +12,12 @@ pipeline {
 
   stages {
     stage('Build') {
-      dir("github.com/halkeye/git-version-commits") {
-        checkout scm
+      steps {
+        dir("github.com/halkeye/git-version-commits") {
+          checkout scm
+        }
+        sh "make"
       }
-      sh "make"
     }
     stage('Deploy') {
       when {
