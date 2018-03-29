@@ -17,6 +17,7 @@ pipeline {
           checkout scm
         }
         sh """
+          export GOPATH=$WORKSPACE
           go get ./...
           mkdir -p bin
           for binary in confluence-poster git-release-info release-info-confluence; do
