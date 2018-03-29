@@ -11,14 +11,22 @@ pipeline {
   }
 
   stages {
-    stage('Install') {
-      steps {
-        sh 'go get ./...'
-      }
-    }
     stage('Build') {
+      dir("github.com/halkeye/git-version-commits") {
+        checkout scm
+      }
+      sh "make"
+    }
+    stage('Deploy') {
+      when {
+        branch 'master'
+      }
+      environment {
+        DOCKER = credentials('dockerhub-halkeye')
+      }
       steps {
-        sh 'make all'
+        sh 'docker login --username $DOCKER_USR --password=$DOCKER_PSW'
+        sh 'docker push halkeye/git-version-commits
       }
     }
   }

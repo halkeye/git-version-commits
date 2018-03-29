@@ -1,7 +1,10 @@
 install:
 	go install ./...
 
-all:
+deps:
+	go get ./...
+
+all: deps
 	mkdir -p bin
 	for binary in confluence-poster git-release-info release-info-confluence; do \
 		for OS in darwin linux windows; do \
@@ -11,3 +14,6 @@ all:
 
 docker:
 	docker build -t halkeye/git-version-commits .
+
+godocker:
+	 godockerize build -t git-version-commits:latest github.com/halkeye/git-version-commits/{git-release-info,confluence-poster,release-info-confluence}
