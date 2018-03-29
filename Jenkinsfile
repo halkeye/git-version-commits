@@ -1,9 +1,5 @@
 pipeline {
-  agent {
-    docker {
-      image 'golang:1.9'
-    }
-  }
+  agent any
 
   options {
     timeout(time: 10, unit: 'MINUTES')
