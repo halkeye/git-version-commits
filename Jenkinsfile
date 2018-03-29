@@ -13,7 +13,7 @@ pipeline {
   stages {
     stage('Build') {
       steps {
-        dir("github.com/halkeye/git-version-commits") {
+        dir("src/github.com/halkeye/git-version-commits") {
           checkout scm
           sh """
             export GOPATH=$WORKSPACE
