@@ -1,7 +1,6 @@
 FROM golang:1.9
 WORKDIR /go/src/github.com/halkeye/git-version-commits
 COPY . .
-RUN apk add --no-cache ca-certificates
 RUN make all
 
 FROM alpine:3.7
