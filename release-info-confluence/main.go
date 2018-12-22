@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"text/template"
 
@@ -30,7 +31,7 @@ func main() {
 	if len(*releaseJson) != 0 {
 		inputFile, err = os.Open(*releaseJson)
 		if err != nil {
-			panic(err)
+			log.Fatal(fmt.Errorf("File is not a json file: %v", err))
 		}
 	}
 
@@ -38,7 +39,7 @@ func main() {
 
 	var tpl bytes.Buffer
 	if err = confluenceTemplate.Execute(&tpl, release); err != nil {
-		panic(err)
+		log.Fatal(fmt.Errorf("Error creating template: %v", err))
 	}
 
 	title := release.Repo + " - " + release.Version
