@@ -102,27 +102,32 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 		return issues, nil
 	}
 
+	commitUrl := commit.GetURL()
+	commitUrl = strings.Replace(commitUrl, "https://api.", "https://", -1)
+	commitUrl = strings.Replace(commitUrl, "/git/commits/", "/commit/", -1)
+	commitUrl = strings.Replace(commitUrl, "/repos/", "/", -1)
+
 	if len(jiraIssues) == 0 && pullRequest != nil {
 		issues = append(issues, lib.Issue{
-			Title:         pullRequest.GetTitle(),
-			Author:        authorName,
-			Status:        pullRequest.GetState(),
-			Type:          "Pull Request",
-			CommitUrl:     commit.GetURL(),
-			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
-			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
-			IsPullRequest: true})
+			Title:           pullRequest.GetTitle(),
+			Author:          authorName,
+			Status:          pullRequest.GetState(),
+			Type:            "Pull Request",
+			GitHubCommitUrl: commitUrl,
+			Key:             fmt.Sprintf("#%d", pullRequest.GetNumber()),
+			Url:             "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
+			IsPullRequest:   true})
 	} else {
 		for _, jiraIssue := range jiraIssues {
 			issues = append(issues, lib.Issue{
-				Title:         jiraIssue.Fields.Summary,
-				Author:        authorName,
-				Key:           jiraIssue.Key,
-				Url:           *jiraServer + "/browse/" + jiraIssue.Key,
-				Status:        jiraIssue.Fields.Status.Name,
-				Type:          jiraIssue.Fields.Type.Name,
-				CommitUrl:     commit.GetURL(),
-				IsPullRequest: false})
+				Title:           jiraIssue.Fields.Summary,
+				Author:          authorName,
+				Key:             jiraIssue.Key,
+				Url:             *jiraServer + "/browse/" + jiraIssue.Key,
+				Status:          jiraIssue.Fields.Status.Name,
+				Type:            jiraIssue.Fields.Type.Name,
+				GitHubCommitUrl: commitUrl,
+				IsPullRequest:   false})
 		}
 	}
 	return issues, nil

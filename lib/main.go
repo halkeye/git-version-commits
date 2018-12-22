@@ -6,14 +6,14 @@ import (
 )
 
 type Issue struct {
-	Title         string
-	Author        string
-	Key           string
-	Url           string
-	CommitUrl     string
-	Status        string
-	Type          string
-	IsPullRequest bool
+	Title           string
+	Author          string
+	Key             string
+	Url             string
+	GitHubCommitUrl string
+	Status          string
+	Type            string
+	IsPullRequest   bool
 }
 
 func (i *Issue) HashKey() string {
