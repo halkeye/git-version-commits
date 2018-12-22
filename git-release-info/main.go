@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/halkeye/git-version-commits/lib"
 
 	"github.com/andygrunwald/go-jira"
+	"github.com/blang/semver"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -20,11 +22,13 @@ import (
 var (
 	mergePullRequestRegex = regexp.MustCompile(`Merge pull request #(\d+) from`)
 	jiraIssueKey          = regexp.MustCompile(`\b([A-Z]+-\d+)\b`)
+	prefixContent         = regexp.MustCompile(`^[a-zA-Z_-]*`)
 )
 
 /* Parameters */
 var (
 	skip         = kingpin.Flag("skip", "Number of tags to skip").Short('s').Default("0").Int()
+	unreleased   = kingpin.Flag("unreleased", "Use master instead of tag for first version").Default("false").Bool()
 	repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
 	token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
 	jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
@@ -53,7 +57,8 @@ func findAllJiraIssues(body string) ([]jira.Issue, error) {
 	for jiraIssue, _ := range jiraIssues {
 		issue, _, err := jiraClient.Issue.Get(jiraIssue, nil)
 		if err != nil {
-			log.Fatal(fmt.Errorf("Error getting jira issue %s - %v", jiraIssue, err))
+			log.Println(fmt.Sprintf("Error getting jira issue %s - %v", jiraIssue, err))
+			continue
 		}
 		issues = append(issues, *issue)
 	}
@@ -79,29 +84,31 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 	var err error
 
 	var matches = mergePullRequestRegex.FindStringSubmatch(commit.GetMessage())
-	if len(matches) == 0 {
-		return issues, nil
-	}
+	body := commit.GetMessage()
+	authorName := commit.GetAuthor().GetName()
 
-	pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
-	pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
-	if err != nil || pullRequest == nil {
-		return issues, err
+	if len(matches) != 0 {
+		pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
+		pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
+		if err != nil || pullRequest == nil {
+			return issues, err
+		}
+		body = pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
+		authorName = GetUser(pullRequest.GetUser().GetLogin()).GetName()
 	}
-	body := pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
 
 	jiraIssues, err := findAllJiraIssues(body)
 	if err != nil {
 		return issues, nil
 	}
 
-	authorName := GetUser(pullRequest.GetUser().GetLogin()).GetName()
 	if len(jiraIssues) == 0 && pullRequest != nil {
 		issues = append(issues, lib.Issue{
 			Title:         pullRequest.GetTitle(),
 			Author:        authorName,
 			Status:        pullRequest.GetState(),
 			Type:          "Pull Request",
+			CommitUrl:     commit.GetURL(),
 			Key:           fmt.Sprintf("#%d", pullRequest.GetNumber()),
 			Url:           "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
 			IsPullRequest: true})
@@ -114,10 +121,16 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 				Url:           *jiraServer + "/browse/" + jiraIssue.Key,
 				Status:        jiraIssue.Fields.Status.Name,
 				Type:          jiraIssue.Fields.Type.Name,
+				CommitUrl:     commit.GetURL(),
 				IsPullRequest: false})
 		}
 	}
 	return issues, nil
+}
+
+type TagVersion struct {
+	Tag     *github.RepositoryTag
+	Version *semver.Version
 }
 
 func main() {
@@ -146,16 +159,50 @@ func main() {
 		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 	}
 
-	tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], tags[*skip].GetCommit().GetSHA())
+	tagVersions := []TagVersion{}
+	for _, tag := range tags {
+		ver, err := semver.Make(prefixContent.ReplaceAllString(*tag.Name, ""))
+		if err != nil {
+			continue
+		}
+		tagVersions = append(tagVersions, TagVersion{Tag: tag, Version: &ver})
+	}
+	sort.Slice(tagVersions, func(i, j int) bool {
+		return (*tagVersions[i].Version).GT((*tagVersions[j].Version))
+	})
+
+	var version string
+	var startTag string
+	var startSha string
+	var endTag string
+
+	if *unreleased == true {
+		ref, _, err := githubClient.Git.GetRef(ctx, repoSplit[0], repoSplit[1], "heads/master")
+		if err != nil {
+			log.Fatal(fmt.Errorf("Error getting master ref %v", err))
+		}
+		startSha = ref.Object.GetSHA()
+
+		startTag = tagVersions[*skip].Tag.GetName()
+		endTag = "master"
+		version = "master"
+	} else {
+		startTag = tagVersions[*skip+1].Tag.GetName()
+		startSha = tagVersions[*skip].Tag.GetCommit().GetSHA()
+		endTag = tagVersions[*skip].Tag.GetName()
+		version = tagVersions[*skip].Version.String()
+	}
+
+	tagCommit, _, _ := githubClient.Repositories.GetCommit(ctx, repoSplit[0], repoSplit[1], startSha)
 	release := lib.Release{
 		Author:  tagCommit.GetCommit().GetAuthor().GetName(),
-		Version: strings.TrimLeft(tags[*skip].GetName(), "v"),
+		Version: version,
 		Org:     repoSplit[0],
 		Repo:    repoSplit[1],
 		Date:    tagCommit.GetCommit().GetCommitter().GetDate(),
 	}
 
-	compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], tags[*skip+1].GetName(), tags[*skip].GetName())
+	compare, _, err := githubClient.Repositories.CompareCommits(ctx, repoSplit[0], repoSplit[1], startTag, endTag)
 	if err != nil {
 		log.Fatal(fmt.Errorf("Problem in tags information %v", err))
 	}

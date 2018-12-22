@@ -10,6 +10,7 @@ type Issue struct {
 	Author        string
 	Key           string
 	Url           string
+	CommitUrl     string
 	Status        string
 	Type          string
 	IsPullRequest bool
