@@ -11,6 +11,7 @@ type Issue struct {
 	Key             string
 	Url             string
 	GitHubCommitUrl string
+	Sha             string
 	Status          string
 	Type            string
 	IsPullRequest   bool

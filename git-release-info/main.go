@@ -21,6 +21,7 @@ import (
 
 var (
 	mergePullRequestRegex = regexp.MustCompile(`Merge pull request #(\d+) from`)
+	pullRequestRegex      = regexp.MustCompile(`\(#(\d+)\)`)
 	jiraIssueKey          = regexp.MustCompile(`\b([A-Z]+-\d+)\b`)
 	prefixContent         = regexp.MustCompile(`^[a-zA-Z_-]*`)
 )
@@ -83,18 +84,33 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 	var pullRequest *github.PullRequest
 	var err error
 
-	var matches = mergePullRequestRegex.FindStringSubmatch(commit.GetMessage())
 	body := commit.GetMessage()
 	authorName := commit.GetAuthor().GetName()
 
+	var matches = mergePullRequestRegex.FindStringSubmatch(body)
 	if len(matches) != 0 {
 		pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
 		pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
 		if err != nil || pullRequest == nil {
-			return issues, err
+			log.Println(fmt.Sprintf("Error getting jira issue %d - %v", pullRequestNumber, err))
+		} else {
+			body = pullRequest.GetTitle() + "||||" + pullRequest.GetBody() + "||||" + commit.GetMessage()
+			authorName = GetUser(pullRequest.GetUser().GetLogin()).GetName()
 		}
-		body = pullRequest.GetTitle() + "||||" + pullRequest.GetBody()
-		authorName = GetUser(pullRequest.GetUser().GetLogin()).GetName()
+	}
+
+	if pullRequest == nil {
+		matches = pullRequestRegex.FindStringSubmatch(body)
+		if len(matches) != 0 {
+			pullRequestNumber, _ := strconv.ParseInt(matches[1], 10, 32)
+			pullRequest, _, err = githubClient.PullRequests.Get(ctx, org, repo, int(pullRequestNumber))
+			if err != nil || pullRequest == nil {
+				log.Println(fmt.Sprintf("Error getting jira issue %d - %v", pullRequestNumber, err))
+			} else {
+				body = pullRequest.GetTitle() + "||||" + pullRequest.GetBody() + "||||" + commit.GetMessage()
+				authorName = GetUser(pullRequest.GetUser().GetLogin()).GetName()
+			}
+		}
 	}
 
 	jiraIssues, err := findAllJiraIssues(body)
@@ -107,17 +123,10 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 	commitUrl = strings.Replace(commitUrl, "/git/commits/", "/commit/", -1)
 	commitUrl = strings.Replace(commitUrl, "/repos/", "/", -1)
 
-	if len(jiraIssues) == 0 && pullRequest != nil {
-		issues = append(issues, lib.Issue{
-			Title:           pullRequest.GetTitle(),
-			Author:          authorName,
-			Status:          pullRequest.GetState(),
-			Type:            "Pull Request",
-			GitHubCommitUrl: commitUrl,
-			Key:             fmt.Sprintf("#%d", pullRequest.GetNumber()),
-			Url:             "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
-			IsPullRequest:   true})
-	} else {
+	commitShaParts := strings.Split(commitUrl, "/")
+	commitSha := commitShaParts[len(commitShaParts)-1]
+
+	if len(jiraIssues) != 0 {
 		for _, jiraIssue := range jiraIssues {
 			issues = append(issues, lib.Issue{
 				Title:           jiraIssue.Fields.Summary,
@@ -127,8 +136,22 @@ func findIssuesForCommit(commit *github.Commit, org string, repo string) ([]lib.
 				Status:          jiraIssue.Fields.Status.Name,
 				Type:            jiraIssue.Fields.Type.Name,
 				GitHubCommitUrl: commitUrl,
+				Sha:             commitSha,
 				IsPullRequest:   false})
 		}
+	} else if pullRequest != nil {
+		issues = append(issues, lib.Issue{
+			Title:           pullRequest.GetTitle(),
+			Author:          authorName,
+			Status:          pullRequest.GetState(),
+			Type:            "Pull Request",
+			GitHubCommitUrl: commitUrl,
+			Sha:             commitSha,
+			Key:             fmt.Sprintf("#%d", pullRequest.GetNumber()),
+			Url:             "https://github.com/" + org + "/" + repo + "/pull/" + fmt.Sprintf("%d", pullRequest.GetNumber()),
+			IsPullRequest:   true})
+	} else {
+		log.Println("Not sure what to do with: " + commit.GetMessage())
 	}
 	return issues, nil
 }
