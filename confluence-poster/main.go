@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -36,7 +37,7 @@ func main() {
 
 	fileContents, err := ioutil.ReadAll(inputFile)
 	if err != nil {
-		panic(err)
+		log.Fatal(fmt.Errorf("Error reading file: %v", err))
 	}
 	fileContentsParts := strings.SplitN(string(fileContents), "\n", 2)
 	title, contents := string(fileContentsParts[0]), string(fileContentsParts[1])
@@ -49,17 +50,17 @@ func main() {
 		*confluenceServer,
 		confluence.BasicAuth(*confluenceUsername, *confluencePassword))
 	if err != nil {
-		panic(err)
+		log.Fatal(fmt.Errorf("Error creating confluence object: %v", err))
 	}
 
 	parentPageContent, err := confluenceClient.GetContent(*parentPage, []string{"space"})
 	if err != nil {
-		panic(err)
+		log.Fatal(fmt.Errorf("Error reading existing content: %v", err))
 	}
 
 	results, err := confluenceClient.GetContentChildrenPages(*parentPage, []string{"version", "space"})
 	if err != nil {
-		panic(err)
+		log.Fatal(fmt.Errorf("Error getting children pages: %v", err))
 	}
 
 	var content *confluence.Content
@@ -89,7 +90,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Printf("Response: %s\n", response)
-		panic(err)
+		log.Fatal(fmt.Errorf("Error uploading new content: %v", err))
 	}
 	fmt.Printf("%s\n", *confluenceServer+"/pages/viewpage.action?pageId="+content.ID)
 }
