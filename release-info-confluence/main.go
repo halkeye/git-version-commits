@@ -72,6 +72,9 @@ var (
 			</ac:structured-macro>
 			{{ .Title }}
 			<sub>[{{ .Author }}]</sub>
+			{{ if and .GitHubCommitUrl .Sha }}
+			<sub>[<a class="external-link" href="{{ .GitHubCommitUrl }}">{{ .Sha }}]</a></sub>
+			{{ end }}
 		</li>
 	{{end}}
 <ac:layout>
