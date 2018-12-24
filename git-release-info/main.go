@@ -29,7 +29,7 @@ var (
 /* Parameters */
 var (
 	skip         = kingpin.Flag("skip", "Number of tags to skip").Short('s').Default("0").Int()
-	unreleased   = kingpin.Flag("unreleased", "Use master instead of tag for first version").Default("false").Bool()
+	branch       = kingpin.Flag("branch", "override branch instead of tag for first version").String()
 	repo         = kingpin.Arg("repo", "Github orgniazation/Repository").Envar("GITHUB_REPO").Required().String()
 	token        = kingpin.Flag("token", "Github Token").Envar("GITHUB_TOKEN").Required().String()
 	jiraServer   = kingpin.Flag("server", "Jira Server").Envar("JIRA_SERVER").Required().String()
@@ -204,16 +204,16 @@ func main() {
 	var startSha string
 	var endTag string
 
-	if *unreleased == true {
-		ref, _, err := githubClient.Git.GetRef(ctx, repoSplit[0], repoSplit[1], "heads/master")
+	if branch != nil {
+		ref, _, err := githubClient.Git.GetRef(ctx, repoSplit[0], repoSplit[1], "heads/"+*branch)
 		if err != nil {
-			log.Fatal(fmt.Errorf("Error getting master ref %v", err))
+			log.Fatal(fmt.Errorf("Error getting %s ref %v", *branch, err))
 		}
 		startSha = ref.Object.GetSHA()
 
 		startTag = tagVersions[*skip].Tag.GetName()
-		endTag = "master"
-		version = "master"
+		endTag = *branch
+		version = *branch
 	} else {
 		startTag = tagVersions[*skip+1].Tag.GetName()
 		startSha = tagVersions[*skip].Tag.GetCommit().GetSHA()
