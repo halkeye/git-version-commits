@@ -65,11 +65,13 @@ var (
 	{{define "issueTemplate"}}
 		<li>
 			<a class="external-link" href="{{ .Url }}">{{ .Key }}</a> 
+			<!--
 			<ac:structured-macro ac:macro-id="e80bfffe-57e5-4195-8026-300b8e3e3f8b" ac:name="status" ac:schema-version="1">
 				<ac:parameter ac:name="subtle">true</ac:parameter>
 				<ac:parameter ac:name="colour">{{statusColor .Status }}</ac:parameter>
 				<ac:parameter ac:name="title">{{ .Status }}</ac:parameter>
 			</ac:structured-macro>
+			-->
 			{{ .Title }}
 			<sub>[{{ .Author }}]</sub>
 			{{ if and .GitHubCommitUrl .Sha }}
